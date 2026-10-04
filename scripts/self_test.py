@@ -3,6 +3,7 @@
 from pathlib import Path
 import struct
 import sys
+import re
 
 ROOT = Path(__file__).resolve().parents[1]
 errors = []
@@ -32,7 +33,19 @@ if not errors:
     need('name: novel-dialogue-subtext-cn' in manifest and 'slug: novel-dialogue-subtext-cn' in manifest, 'manifest identity mismatch')
     need('icon: icon-512.png' in manifest, 'manifest icon missing')
     need('allow_implicit_invocation: true' in agent and 'policy:' in agent, 'agent policy invalid')
-    need(25 <= len('保留小说既有事实，改写差异化人物对白并逐句拆解潜台词') <= 64, 'short description length invalid')
+    for field in ('display_name', 'short_description', 'default_prompt', 'icon_small', 'icon_large'):
+        found = re.search(r'^  ' + field + r': "([^"\n]+)"$', agent, re.M)
+        need(bool(found), f'agent field must be quoted: {field}')
+        if not found:
+            continue
+        value = found.group(1)
+        if field == 'short_description':
+            need(25 <= len(value) <= 64, 'actual short description length invalid')
+        elif field == 'default_prompt':
+            need('$novel-dialogue-subtext-cn' in value, 'default_prompt must reference this Skill')
+        elif field.startswith('icon_'):
+            target = (ROOT / value).resolve()
+            need(target.is_relative_to(ROOT.resolve()) and target.is_file(), 'agent icon must exist inside Skill directory')
     need('assets/promo-1600x900.png' in readme, 'README does not show promo')
     need(png_size(ROOT / 'icon-512.png') == (512, 512), 'icon must be 512x512')
     need(png_size(ROOT / 'assets/promo-1600x900.png') == (1600, 900), 'promo must be 1600x900')
